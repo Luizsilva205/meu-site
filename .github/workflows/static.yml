@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciador de Flashcards</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 0;
+        }
+
+        .header {
+            background-color: #673ab7;
+            padding: 15px;
+            color: white;
+            text-align: center;
+        }
+
+        .nav {
+            display: flex;
+            justify-content: center;
+            background-color: #5e35b1;
+        }
+
+        .nav button {
+            background-color: transparent;
+            border: none;
+            color: white;
+            padding: 15px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .nav button:hover {
+            background-color: #4c288f;
+        }
+
+        .container {
+            padding: 20px;
+            text-align: center;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .flashcard {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+
+        .flashcard.show-answer {
+            background-color: #e0f7fa;
+        }
+
+        .input-field {
+            margin-bottom: 10px;
+            display: block;
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+        }
+
+        .btn {
+            background-color: #673ab7;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            background-color: #5e35b1;
+        }
+
+        .flashcard-controls {
+            margin-top: 20px;
+        }
+
+        .flashcard-controls button {
+            background-color: #673ab7;
+            color: white;
+            padding: 10px 15px;
+            margin: 0 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .flashcard-controls button:hover {
+            background-color: #5e35b1;
+        }
+
+        .status {
+            margin: 20px 0;
+            font-size: 16px;
+        }
+
+        .result {
+            background-color: #e3f2fd;
+            border: 1px solid #bbdefb;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-size: 18px;
+        }
+
+        .error {
+            background-color: #ffebee; /* Cor avermelhada para erros */
+        }
+
+        .percentage {
+            font-weight: bold;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>Gerenciador de Flashcards</h1>
+</div>
+
+<div class="nav">
+    <button onclick="mostrarAba('inicio')">Início</button>
+    <button onclick="mostrarAba('adicionar')">Adicionar Flashcards</button>
+    <button onclick="mostrarAba('praticar')">Praticar</button>
+    <button onclick="mostrarAba('resultados')">Resultados</button>
+</div>
+
+<div id="inicio" class="container">
+    <h2>Bem-vindo ao Gerenciador de Flashcards</h2>
+    <p>Veja seus flashcards organizados por tema abaixo e clique para praticar.</p>
+    <div id="lista-flashcards"></div>
+</div>
+
+<div id="adicionar" class="container hidden">
+    <h2>Adicionar Novo Flashcard</h2>
+    <input type="text" id="novoTema" class="input-field" placeholder="Tema (opcional)">
+    <input type="text" id="novaPergunta" class="input-field" placeholder="Pergunta">
+    <input type="text" id="novaResposta" class="input-field" placeholder="Resposta">
+    <button class="btn" onclick="adicionarFlashcard()">Adicionar</button>
+    <label for="temaExistente">Filtrar por Tema:</label>
+    <select id="temaExistente" class="input-field" onchange="filtrarFlashcards()">
+        <option value="">Todos</option>
+    </select>
+</div>
+
+<div id="praticar" class="container hidden">
+    <h2>Praticar Flashcards</h2>
+    <label for="temaPraticar">Filtrar por Tema:</label>
+    <select id="temaPraticar" class="input-field" onchange="filtrarFlashcardsPratica()">
+        <option value="">Todos</option>
+    </select>
+    <div class="status" id="status-flashcard"></div>
+    <div id="cronometro" class="status"></div>
+    <div id="flashcard-container" class="flashcard"></div>
+    <button id="verResposta" class="btn" onclick="mostrarResposta()">Ver Resposta</button>
+    <div id="flashcard-resposta" class="flashcard hidden"></div>
+    <div class="flashcard-controls hidden" id="avaliacao">
+        <button onclick="classificarFlashcard('errei')">Errei</button>
+        <button onclick="classificarFlashcard('acertei')">Acertei</button>
+    </div>
+</div>
+
+<div id="resultados" class="container hidden">
+    <h2>Resultados</h2>
+    <div id="lista-resultados"></div>
+    <div class="percentage" id="resultadoPorcentagem"></div>
+</div>
+
+<script>
+    let flashcards = [];
+    let flashcardAtual = 0;
+    let flashcardsFiltrados = [];
+    let tempoInicio = 0;
+    let intervaloCronometro;
+    let resultados = [];
+
+    function mostrarAba(aba) {
+        document.getElementById('inicio').classList.add('hidden');
+        document.getElementById('adicionar').classList.add('hidden');
+        document.getElementById('praticar').classList.add('hidden');
+        document.getElementById('resultados').classList.add('hidden');
+        document.getElementById(aba).classList.remove('hidden');
+
+        if (aba === 'inicio') {
+            atualizarListaFlashcards();
+        } else if (aba === 'praticar') {
+            atualizarSelects();
+            filtrarFlashcardsPratica(); // Garante que o filtro é aplicado ao entrar na aba de prática
+            if (flashcardsFiltrados.length > 0) {
+                flashcardAtual = 0; // Reinicia o índice ao entrar na aba de prática
+                carregarFlashcard(flashcardAtual);
+                atualizarStatus();
+                iniciarCronometro();
+            } else {
+                document.getElementById('flashcard-container').innerText = 'Nenhum flashcard para praticar.';
+                document.getElementById('verResposta').classList.add('hidden');
+            }
+        } else if (aba === 'resultados') {
+            exibirResultados();
+            calcularPorcentagem();
+        }
+    }
+
+    function adicionarFlashcard() {
+        const tema = document.getElementById('novoTema').value;
+        const pergunta = document.getElementById('novaPergunta').value;
+        const resposta = document.getElementById('novaResposta').value;
+
+        if (pergunta && resposta) {
+            flashcards.push({ tema, pergunta, resposta });
+            document.getElementById('novoTema').value = '';
+            document.getElementById('novaPergunta').value = '';
+            document.getElementById('novaResposta').value = '';
+            atualizarListaFlashcards();
+            atualizarSelects();
+            salvarFlashcards();
+            alert('Flashcard adicionado com sucesso!');
+        } else {
+            alert('Por favor, preencha todos os campos obrigatórios.');
+        }
+    }
+
+    function editarFlashcard(index) {
+        const card = flashcards[index];
+        document.getElementById('novoTema').value = card.tema;
+        document.getElementById('novaPergunta').value = card.pergunta;
+        document.getElementById('novaResposta').value = card.resposta;
+
+        // Remover o flashcard existente e permitir re-adicionar
+        flashcards.splice(index, 1);
+        atualizarListaFlashcards();
+        salvarFlashcards();
+        mostrarAba('adicionar');
+    }
+
+    function atualizarListaFlashcards() {
+        const lista = document.getElementById('lista-flashcards');
+        lista.innerHTML = '';
+        if (flashcards.length === 0) {
+            lista.innerHTML = '<p>Nenhum flashcard criado ainda.</p>';
+        } else {
+            flashcards.forEach((card, index) => {
+                const div = document.createElement('div');
+                div.innerHTML = `<strong>Tema:</strong> ${card.tema} <br> 
+                                 <strong>Pergunta:</strong> ${card.pergunta} <br>
+                                 <strong>Resposta:</strong> ${card.resposta} <br>
+                                 <div class="flashcard-controls">
+                                     <button class="btn" onclick="editarFlashcard(${index})">Editar</button>
+                                     <button class="btn" onclick="removerFlashcard(${index})">Remover</button>
+                                 </div>`;
+                lista.appendChild(div);
+            });
+        }
+    }
+
+    function removerFlashcard(index) {
+        flashcards.splice(index, 1);
+        atualizarListaFlashcards();
+        salvarFlashcards();
+    }
+
+    function carregarFlashcard(index) {
+        const card = flashcardsFiltrados[index];
+        document.getElementById('flashcard-container').innerText = card.pergunta;
+        document.getElementById('flashcard-resposta').innerText = card.resposta;
+        document.getElementById('flashcard-resposta').classList.add('hidden');
+        document.getElementById('avaliacao').classList.add('hidden');
+        document.getElementById('verResposta').classList.remove('hidden');
+    }
+
+    function mostrarResposta() {
+        document.getElementById('flashcard-resposta').classList.toggle('hidden');
+        document.getElementById('flashcard-container').classList.toggle('show-answer');
+        document.getElementById('avaliacao').classList.remove('hidden');
+        pararCronometro();
+    }
+
+    function classificarFlashcard(resultado) {
+        const card = flashcardsFiltrados[flashcardAtual];
+        const tempoGasto = Date.now() - tempoInicio;
+
+        resultados.push({
+            pergunta: card.pergunta,
+            correto: resultado === 'acertei',
+            tempo: (tempoGasto / 1000).toFixed(2),
+            data: new Date().toLocaleString(),
+        });
+
+        flashcardAtual++;
+        if (flashcardAtual < flashcardsFiltrados.length) {
+            carregarFlashcard(flashcardAtual);
+            atualizarStatus();
+            iniciarCronometro();
+        } else {
+            alert('Você completou todos os flashcards!');
+            mostrarAba('resultados');
+        }
+    }
+
+    function exibirResultados() {
+        const listaResultados = document.getElementById('lista-resultados');
+        listaResultados.innerHTML = '';
+        resultados.forEach((resultado) => {
+            const div = document.createElement('div');
+            div.className = 'result ' + (resultado.correto ? '' : 'error');
+            div.innerHTML = `<strong>Pergunta:</strong> ${resultado.pergunta} <br>
+                             <strong>Status:</strong> ${resultado.correto ? 'Acertei' : 'Errei'} <br>
+                             <strong>Data:</strong> ${resultado.data} <br>
+                             <strong>Tempo:</strong> ${resultado.tempo} segundos`;
+            listaResultados.appendChild(div);
+        });
+    }
+
+    function calcularPorcentagem() {
+        const total = resultados.length;
+        const corretos = resultados.filter(res => res.correto).length;
+        const errados = total - corretos;
+
+        const porcentagemAcertos = total ? ((corretos / total) * 100).toFixed(2) : 0;
+        const porcentagemErros = total ? ((errados / total) * 100).toFixed(2) : 0;
+
+        document.getElementById('resultadoPorcentagem').innerText = 
+            `Porcentagem de Acertos: ${porcentagemAcertos}% | Porcentagem de Erros: ${porcentagemErros}%`;
+    }
+
+    function filtrarFlashcards() {
+        const temaSelecionado = document.getElementById('temaExistente').value;
+        flashcardsFiltrados = temaSelecionado ? flashcards.filter(card => card.tema === temaSelecionado) : flashcards;
+        atualizarListaFlashcards();
+    }
+
+    function filtrarFlashcardsPratica() {
+        const temaSelecionado = document.getElementById('temaPraticar').value;
+        flashcardsFiltrados = temaSelecionado ? flashcards.filter(card => card.tema === temaSelecionado) : flashcards;
+        atualizarStatus();
+        if (flashcardsFiltrados.length === 0) {
+            document.getElementById('flashcard-container').innerText = 'Nenhum flashcard para praticar.';
+            document.getElementById('verResposta').classList.add('hidden');
+        } else {
+            flashcardAtual = 0; // Reinicia o índice se houver flashcards filtrados
+            carregarFlashcard(flashcardAtual);
+        }
+    }
+
+    function atualizarSelects() {
+        const temaSelect = document.getElementById('temaExistente');
+        const temaPraticarSelect = document.getElementById('temaPraticar');
+
+        temaSelect.innerHTML = '<option value="">Todos</option>';
+        temaPraticarSelect.innerHTML = '<option value="">Todos</option>';
+
+        const temasUnicos = [...new Set(flashcards.map(card => card.tema))];
+
+        temasUnicos.forEach(tema => {
+            temaSelect.innerHTML += `<option value="${tema}">${tema}</option>`;
+            temaPraticarSelect.innerHTML += `<option value="${tema}">${tema}</option>`;
+        });
+    }
+
+    function atualizarStatus() {
+        document.getElementById('status-flashcard').innerText = 
+            `Flashcard ${flashcardAtual + 1} de ${flashcardsFiltrados.length}`;
+    }
+
+    function iniciarCronometro() {
+        tempoInicio = Date.now();
+        intervaloCronometro = setInterval(() => {
+            const tempoGasto = (Date.now() - tempoInicio) / 1000;
+            document.getElementById('cronometro').innerText = `Tempo: ${tempoGasto.toFixed(2)} segundos`;
+        }, 100);
+    }
+
+    function pararCronometro() {
+        clearInterval(intervaloCronometro);
+    }
+
+    function salvarFlashcards() {
+        localStorage.setItem('flashcards', JSON.stringify(flashcards));
+    }
+
+    function carregarFlashcardsSalvos() {
+        const flashcardsSalvos = JSON.parse(localStorage.getItem('flashcards'));
+        if (flashcardsSalvos) {
+            flashcards = flashcardsSalvos;
+            atualizarListaFlashcards();
+            atualizarSelects();
+        }
+    }
+
+    window.onload = carregarFlashcardsSalvos;
+</script>
+
+</body>
+</html>
